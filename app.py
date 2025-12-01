@@ -393,6 +393,15 @@ with st.sidebar:
             if "messages" in st.session_state:
                 del st.session_state.messages
             st.rerun()
+    
+    st.divider()
+    
+    # === 安全警語 ===
+    st.info(
+        "**安全提示：** 這是一個 AI 教練，不是專業治療師。"
+        "如果你正處於危機情況，請立即尋求專業協助。",
+        icon="⚠️"
+    )
 
 if not api_key:
     st.warning("請先輸入 API Key 才能啟動 Mind Flow。")
@@ -608,7 +617,7 @@ with tab_dashboard:
         st.dataframe(st.session_state.journal_db.tail(7), hide_index=True)
         
         st.write("能量指數趨勢（最近 7 天）：")
-        # 準備圖表數據：過濾最近 7 天的數據
+        # 準備圖表數據：過濾最近 7 天的數據，並按日期分組計算平均值
         try:
             journal_db_copy = st.session_state.journal_db.copy()
             journal_db_copy["Timestamp"] = pd.to_datetime(journal_db_copy["Timestamp"], errors="coerce")
@@ -617,12 +626,25 @@ with tab_dashboard:
             # 過濾最近 7 天的數據
             seven_days_ago = datetime.datetime.now() - datetime.timedelta(days=7)
             recent_data = journal_db_copy[journal_db_copy["Timestamp"] >= seven_days_ago].copy()
-            recent_data = recent_data.dropna(subset=["Timestamp", "Energy"]).sort_values("Timestamp")
+            recent_data = recent_data.dropna(subset=["Timestamp", "Energy"])
             
             if not recent_data.empty:
+                # 將時間戳轉換為日期（只保留日期部分）
+                recent_data["Date"] = recent_data["Timestamp"].dt.date
+                
+                # 按日期分組，計算每天的平均能量值
+                daily_avg = recent_data.groupby("Date", as_index=False).agg({
+                    "Energy": "mean"
+                })
+                daily_avg["Energy"] = daily_avg["Energy"].round(1)  # 保留一位小數
+                
+                # 將日期轉換回 datetime 類型以便 Altair 使用
+                daily_avg["Date"] = pd.to_datetime(daily_avg["Date"])
+                daily_avg = daily_avg.sort_values("Date")
+                
                 # 使用 Altair 創建圖表，設置 y 軸最大值為 10
-                chart = alt.Chart(recent_data).mark_line(point=True).encode(
-                    x=alt.X('Timestamp:T', title='日期', axis=alt.Axis(format='%Y-%m-%d', labelAngle=-45)),
+                chart = alt.Chart(daily_avg).mark_line(point=True).encode(
+                    x=alt.X('Date:T', title='日期', axis=alt.Axis(format='%Y-%m-%d', labelAngle=-45)),
                     y=alt.Y('Energy:Q', title='能量指數', scale=alt.Scale(domain=[0, 10]))
                 ).properties(
                     width='container',
