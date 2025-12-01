@@ -9,6 +9,7 @@ import datetime
 import os
 import time
 import html
+import altair as alt
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage
 from brain import create_mind_flow_brain, load_user_profile
@@ -90,16 +91,14 @@ def render_message(msg):
                 unsafe_allow_html=True,
             )
     elif isinstance(msg, AIMessage):
-        # Agent 在右側（綠色氣泡，整體靠右對齊）
+        # Agent 在右側（綠色氣泡）
         left, right = st.columns([1, 3])
         with right:
             st.markdown(
                 f"""
-                <div class="mf-agent-wrap">
-                    <div class="mf-msg mf-agent">
-                        <span class="mf-avatar">🤖</span>
-                        <span class="mf-text">{msg.content}</span>
-                    </div>
+                <div class="mf-msg mf-agent">
+                    <span class="mf-avatar">🤖</span>
+                    <span class="mf-text">{msg.content}</span>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -208,26 +207,33 @@ def save_to_mind_flow_db(timestamp: str, mood: str, energy: int, note: str):
 
 def calculate_dashboard_metrics():
     """計算儀表板指標"""
-    df = load_mind_flow_db()
+    journal_db = st.session_state.get("journal_db", pd.DataFrame(columns=["Timestamp", "Mood", "Energy", "Note"]))
     
-    # Total Actions: 類型為 'JOURNAL_LOG' 的行數
-    journal_logs = df[df["type"] == "JOURNAL_LOG"] if "type" in df.columns else df
-    total_actions = len(journal_logs)
+    if journal_db.empty:
+        return {
+            "total_actions": 0,
+            "avg_energy": 0.0,
+            "current_streak": 0
+        }
+    
+    # Total Actions: 日記記錄總數
+    total_actions = len(journal_db)
     
     # Avg Energy: Energy 列的平均值（處理缺失值）
-    if "Energy" in journal_logs.columns and not journal_logs.empty:
-        energy_values = pd.to_numeric(journal_logs["Energy"], errors="coerce")
+    if "Energy" in journal_db.columns:
+        energy_values = pd.to_numeric(journal_db["Energy"], errors="coerce")
         avg_energy = energy_values.mean()
         avg_energy = round(avg_energy, 1) if not pd.isna(avg_energy) else 0.0
     else:
         avg_energy = 0.0
     
     # Current Streak: 最近 7 天的日誌數量
-    if "Timestamp" in journal_logs.columns and not journal_logs.empty:
+    if "Timestamp" in journal_db.columns:
         try:
-            journal_logs["Timestamp"] = pd.to_datetime(journal_logs["Timestamp"], errors="coerce")
+            journal_db_copy = journal_db.copy()
+            journal_db_copy["Timestamp"] = pd.to_datetime(journal_db_copy["Timestamp"], errors="coerce")
             seven_days_ago = datetime.datetime.now() - datetime.timedelta(days=7)
-            recent_logs = journal_logs[journal_logs["Timestamp"] >= seven_days_ago]
+            recent_logs = journal_db_copy[journal_db_copy["Timestamp"] >= seven_days_ago]
             current_streak = len(recent_logs)
         except:
             current_streak = 0
@@ -251,11 +257,8 @@ if "journal_db" not in st.session_state:
     # 只保留必要的列給 session_state（不包含 type）
     if not journal_logs.empty:
         st.session_state.journal_db = journal_logs[["Timestamp", "Mood", "Energy", "Note"]].copy()
-        # 設置標記，表示數據已從 CSV 加載
-        st.session_state.journal_db_loaded_from_csv = True
     else:
         st.session_state.journal_db = pd.DataFrame(columns=["Timestamp", "Mood", "Energy", "Note"])
-        st.session_state.journal_db_loaded_from_csv = False
 
 # CSS 優化 (讓介面更乾淨 + 訊息色塊樣式)
 st.markdown("""
@@ -286,15 +289,9 @@ st.markdown("""
         background-color: #e3f2fd;  /* 淡藍 */
         color: #0d47a1;
     }
-    .mf-agent-wrap {
-        width: 100%;
-        text-align: right;  /* 讓 Agent 氣泡整體靠右對齊 */
-    }
     .mf-agent {
         background-color: #e8f5e9;  /* 淡綠 */
         color: #1b5e20;
-        display: inline-block;      /* 配合 wrap 做靠右排列 */
-        text-align: left;            /* 框內文字靠左對齊 */
     }
 
     /* Supervisor Chain-of-Thought 卡片（灰色） */
@@ -343,8 +340,6 @@ with st.sidebar:
     
     st.divider()
     
-    st.header("⚙️ Mind Flow Engine")
-    
     # API Key 管理 (優先級: 環境變數 > Secrets > 手動輸入)
     # 1. 優先從環境變數讀取 (通過 load_dotenv() 從 .env 文件加載)
     api_key = os.getenv("GOOGLE_API_KEY")
@@ -360,16 +355,29 @@ with st.sidebar:
     # 3. 如果都沒有，使用手動輸入
     if not api_key:
         api_key = st.text_input("Google API Key", type="password", help="請輸入 Gemini API Key")
-
+    
+    # === 導航系統 ===
+    st.markdown("### 🧭 導航系統")
+    
+    # 從 JSON 文件加載用戶配置文件
+    user_profile = load_user_profile()
+    
+    if user_profile.get("vision"):
+        with st.container(border=True):
+            st.caption("🔭 12週願景")
+            st.markdown(f"**{user_profile['vision']}**")
+            
+            st.divider()
+            
+            st.caption("⚙️ 每日系統")
+            st.markdown(f"**{user_profile['system']}**")
+    else:
+        with st.container(border=True):
+            st.warning("尚未建立系統。請與 Strategist 互動以設定你的 12 週願景！")
+    
     st.divider()
     
-    # 數據狀態顯示
-    journal_count = len(st.session_state.journal_db) if "journal_db" in st.session_state else 0
-    if journal_count > 0:
-        st.caption(f"📝 已加載 {journal_count} 筆日記記錄")
-    else:
-        st.caption("📝 尚無日記記錄")
-    
+    # === 調試選項 ===
     # 調試：顯示 user_profile 狀態
     if st.checkbox("🔍 顯示調試信息", False):
         user_profile = load_user_profile()
@@ -385,18 +393,6 @@ with st.sidebar:
             if "messages" in st.session_state:
                 del st.session_state.messages
             st.rerun()
-    
-    st.subheader("🧭 你的導航系統")
-    
-    # 從 JSON 文件加載用戶配置文件
-    user_profile = load_user_profile()
-    
-    if user_profile.get("vision"):
-        st.markdown(f"**🔭 願景:** {user_profile['vision']}")
-        st.markdown(f"**⚙️ 系統:** {user_profile['system']}")
-        st.info("💡 Starter 會根據你的當前狀態動態生成微行動建議")
-    else:
-        st.warning("尚未建立系統。請與 Strategist 互動以設定你的 12 週願景！")
 
 if not api_key:
     st.warning("請先輸入 API Key 才能啟動 Mind Flow。")
@@ -446,13 +442,18 @@ tab_chat, tab_dashboard = st.tabs(["💬 Chat", "📊 Dashboard"])
 
 with tab_chat:
     # --- 快速建議按鈕（放在 Chat 分頁頂部） ---
-    suggestions = ["🎯 幫我拆解目標", "😫 我現在好焦慮", "🐢 我想動但動不了", "✅ 我完成了！幫我紀錄"]
+    suggestions = ["🎯 設定目標", "😫 我好焦慮", "🐢 動力不足", "✅ 完成紀錄"]
     cols = st.columns(4)
     selected_prompt = None
-    for i, suggestion in enumerate(suggestions):
-        with cols[i]:
-            if st.button(suggestion):
-                selected_prompt = suggestion
+    
+    if cols[0].button("🎯 設定目標", use_container_width=True):
+        selected_prompt = suggestions[0]
+    if cols[1].button("😫 我好焦慮", use_container_width=True):
+        selected_prompt = suggestions[1]
+    if cols[2].button("🐢 動力不足", use_container_width=True):
+        selected_prompt = suggestions[2]
+    if cols[3].button("✅ 完成紀錄", use_container_width=True):
+        selected_prompt = suggestions[3]
 
     # 建立一個容器用來承載歷史訊息，確保它始終顯示在輸入框上方
     history_container = st.container()
@@ -601,79 +602,36 @@ with tab_chat:
                 st.caption("📥 已記錄這次回覆為「不太好」")
 
 with tab_dashboard:
-    st.header("📊 Flow Journal Dashboard")
-    
-    # 從 CSV 加載完整數據（包含歷史記錄）
-    df_full = load_mind_flow_db()
-    journal_logs = df_full[df_full["type"] == "JOURNAL_LOG"] if "type" in df_full.columns else df_full
-    
-    if not journal_logs.empty:
-        # 頂部統計卡片
-        st.subheader("📈 Overview")
-        overview_cols = st.columns(4)
-        with overview_cols[0]:
-            st.metric("Total Entries", len(journal_logs))
-        with overview_cols[1]:
-            if "Energy" in journal_logs.columns:
-                energy_vals = pd.to_numeric(journal_logs["Energy"], errors="coerce")
-                avg_energy = energy_vals.mean()
-                st.metric("Avg Energy", f"{avg_energy:.1f}" if not pd.isna(avg_energy) else "N/A")
+    st.subheader("📊 Flow Journal")
+    if not st.session_state.journal_db.empty:
+        st.write("最近 7 筆日記記錄：")
+        st.dataframe(st.session_state.journal_db.tail(7), hide_index=True)
+        
+        st.write("能量指數趨勢（最近 7 天）：")
+        # 準備圖表數據：過濾最近 7 天的數據
+        try:
+            journal_db_copy = st.session_state.journal_db.copy()
+            journal_db_copy["Timestamp"] = pd.to_datetime(journal_db_copy["Timestamp"], errors="coerce")
+            journal_db_copy["Energy"] = pd.to_numeric(journal_db_copy["Energy"], errors="coerce")
+            
+            # 過濾最近 7 天的數據
+            seven_days_ago = datetime.datetime.now() - datetime.timedelta(days=7)
+            recent_data = journal_db_copy[journal_db_copy["Timestamp"] >= seven_days_ago].copy()
+            recent_data = recent_data.dropna(subset=["Timestamp", "Energy"]).sort_values("Timestamp")
+            
+            if not recent_data.empty:
+                # 使用 Altair 創建圖表，設置 y 軸最大值為 10
+                chart = alt.Chart(recent_data).mark_line(point=True).encode(
+                    x=alt.X('Timestamp:T', title='日期', axis=alt.Axis(format='%Y-%m-%d', labelAngle=-45)),
+                    y=alt.Y('Energy:Q', title='能量指數', scale=alt.Scale(domain=[0, 10]))
+                ).properties(
+                    width='container',
+                    height=400
+                )
+                st.altair_chart(chart, use_container_width=True)
             else:
-                st.metric("Avg Energy", "N/A")
-        with overview_cols[2]:
-            if "Mood" in journal_logs.columns:
-                most_common_mood = journal_logs["Mood"].mode()[0] if not journal_logs["Mood"].mode().empty else "N/A"
-                st.metric("Most Common Mood", most_common_mood)
-            else:
-                st.metric("Most Common Mood", "N/A")
-        with overview_cols[3]:
-            if "Timestamp" in journal_logs.columns:
-                try:
-                    journal_logs["Timestamp"] = pd.to_datetime(journal_logs["Timestamp"], errors="coerce")
-                    seven_days_ago = datetime.datetime.now() - datetime.timedelta(days=7)
-                    recent_count = len(journal_logs[journal_logs["Timestamp"] >= seven_days_ago])
-                    st.metric("Last 7 Days", recent_count)
-                except:
-                    st.metric("Last 7 Days", "N/A")
-            else:
-                st.metric("Last 7 Days", "N/A")
-        
-        st.divider()
-        
-        # 能量趨勢圖表
-        st.subheader("📉 Energy Trend")
-        if "Timestamp" in journal_logs.columns and "Energy" in journal_logs.columns:
-            try:
-                chart_data = journal_logs[["Timestamp", "Energy"]].copy()
-                chart_data["Timestamp"] = pd.to_datetime(chart_data["Timestamp"], errors="coerce")
-                chart_data["Energy"] = pd.to_numeric(chart_data["Energy"], errors="coerce")
-                chart_data = chart_data.dropna().sort_values("Timestamp")
-                if not chart_data.empty:
-                    st.line_chart(chart_data.set_index("Timestamp")["Energy"], width='stretch')
-                else:
-                    st.info("能量數據不足，無法顯示趨勢圖。")
-            except Exception as e:
-                st.warning(f"無法繪製趨勢圖：{str(e)}")
-        else:
-            st.info("缺少必要的數據列（Timestamp 或 Energy）。")
-        
-        st.divider()
-        
-        # 最近日記記錄表格
-        st.subheader("📝 Recent Journal Entries")
-        display_cols = ["Timestamp", "Mood", "Energy", "Note"]
-        available_cols = [col for col in display_cols if col in journal_logs.columns]
-        if available_cols:
-            recent_data = journal_logs[available_cols].tail(20)
-            st.dataframe(recent_data, hide_index=True, width='stretch')
-        else:
-            st.info("沒有可顯示的數據列。")
+                st.info("最近 7 天尚無能量數據。")
+        except Exception as e:
+            st.warning(f"無法繪製趨勢圖：{str(e)}")
     else:
-        st.info("💡 尚無日記數據，完成一次行動後會自動記錄。")
-        st.markdown("""
-        **如何開始：**
-        - 與 Agent 對話並完成一次行動
-        - Agent 會自動記錄你的狀態（Mood, Energy, Note）
-        - 數據會顯示在這裡
-        """)
-
+        st.info("尚無日記數據，完成一次行動後會自動記錄。")
