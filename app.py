@@ -454,6 +454,73 @@ st.markdown("""
         font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
         font-size: 0.8rem;
     }
+
+    /* Remove red border from chat input - keep it simple with no borders */
+    .stChatInput,
+    .stChatInput *,
+    .stChatInputContainer,
+    .stChatInputContainer *,
+    [data-testid="stChatInput"],
+    [data-testid="stChatInput"] * {
+        border: none !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    
+    /* Target all input/textarea elements - remove all borders */
+    .stChatInput input,
+    .stChatInput textarea,
+    .stChatInputContainer input,
+    .stChatInputContainer textarea,
+    [data-testid="stChatInput"] input,
+    [data-testid="stChatInput"] textarea,
+    .stChatInput > div > div > input,
+    .stChatInput > div > div > textarea,
+    .stChatInput > div > div > div > input,
+    .stChatInput > div > div > div > textarea {
+        border: none !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    
+    /* Remove focus borders - no blue box */
+    .stChatInput input:focus,
+    .stChatInput textarea:focus,
+    .stChatInputContainer input:focus,
+    .stChatInputContainer textarea:focus,
+    [data-testid="stChatInput"] input:focus,
+    [data-testid="stChatInput"] textarea:focus,
+    .stChatInput > div > div > input:focus,
+    .stChatInput > div > div > textarea:focus {
+        border: none !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+        outline: none !important;
+    }
+    
+    /* Remove any error/red border styling - comprehensive override */
+    .stChatInput input[aria-invalid="true"],
+    .stChatInput textarea[aria-invalid="true"],
+    .stChatInputContainer input[aria-invalid="true"],
+    .stChatInputContainer textarea[aria-invalid="true"],
+    .stChatInput input:invalid,
+    .stChatInput textarea:invalid {
+        border: none !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+    }
+    
+    /* Override any wrapper divs that might have borders */
+    .stChatInput > div,
+    .stChatInput > div > div,
+    .stChatInputContainer > div,
+    .stChatInputContainer > div > div {
+        border: none !important;
+        border-color: transparent !important;
+        box-shadow: none !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
