@@ -25,3 +25,13 @@ ENV/
 .DS_Store
 Thumbs.db
 
+# Conversation logs
+logs/
+*.txt
+!requirements.txt
+
+# Database
+data/
+plans_database.csv
+user_profile.json
+
