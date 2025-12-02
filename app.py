@@ -9,6 +9,7 @@ import datetime
 import os
 import html
 import re
+import time
 import altair as alt
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, AIMessage
@@ -218,19 +219,39 @@ def render_supervisor_cot(result):
     reasoning_html = ""
     if reasoning:
         escaped = html.escape(reasoning)
-        reasoning_html = escaped.replace("\r\n", "\n").replace("\n", "<br>")
+        # Normalize line endings first
+        escaped = escaped.replace("\r\n", "\n").replace("\r", "\n")
+        # Ensure Step 1/2/3 each start on a new line with proper spacing
+        # Handle both formats: "- Step" and "Step" (with or without dash)
+        # Add a newline before each Step if not already at start of line
+        escaped = re.sub(r'([^\n])- Step 1:', r'\1\n- Step 1:', escaped)
+        escaped = re.sub(r'([^\n])- Step 2:', r'\1\n- Step 2:', escaped)
+        escaped = re.sub(r'([^\n])- Step 3:', r'\1\n- Step 3:', escaped)
+        # Also handle "Step 1:" format without dash (some LLMs might output this)
+        escaped = re.sub(r'([^\n])Step 1:', r'\1\n- Step 1:', escaped)
+        escaped = re.sub(r'([^\n])Step 2:', r'\1\n- Step 2:', escaped)
+        escaped = re.sub(r'([^\n])Step 3:', r'\1\n- Step 3:', escaped)
+        # Handle if Step is at the very start (with or without dash)
+        if escaped.startswith("Step 1:") or escaped.startswith("- Step 1:"):
+            if not escaped.startswith("\n"):
+                escaped = "\n" + escaped
+        # Remove excessive blank lines (more than 2 consecutive newlines)
+        escaped = re.sub(r'\n{3,}', '\n\n', escaped)
+        # Replace all newlines with <br>
+        reasoning_html = escaped.replace("\n", "<br>")
 
     debug_html = ""
     if debug_info:
         debug_html = html.escape(debug_info)
 
     # Display a full-width gray reasoning card
+    # Show reasoning first, then debug info at the bottom
     st.markdown(
         f"""
         <div class="mf-cot">
             <div class="mf-cot-title">💭 Supervisor Chain of Thought</div>
-            {f"<div class='mf-cot-debug'>{debug_html}</div>" if debug_html else ""}
             {f"<div class='mf-cot-body'>{reasoning_html}</div>" if reasoning_html else ""}
+            {f"<div class='mf-cot-debug'>{debug_html}</div>" if debug_html else ""}
         </div>
         """,
         unsafe_allow_html=True,
@@ -467,7 +488,7 @@ st.markdown("""
         box-shadow: none !important;
         outline: none !important;
     }
-    
+
     /* Target all input/textarea elements - remove all borders */
     .stChatInput input,
     .stChatInput textarea,
@@ -484,7 +505,7 @@ st.markdown("""
         box-shadow: none !important;
         outline: none !important;
     }
-    
+
     /* Remove focus borders - no blue box */
     .stChatInput input:focus,
     .stChatInput textarea:focus,
@@ -499,7 +520,7 @@ st.markdown("""
         box-shadow: none !important;
         outline: none !important;
     }
-    
+
     /* Remove any error/red border styling - comprehensive override */
     .stChatInput input[aria-invalid="true"],
     .stChatInput textarea[aria-invalid="true"],
@@ -511,7 +532,7 @@ st.markdown("""
         border-color: transparent !important;
         box-shadow: none !important;
     }
-    
+
     /* Override any wrapper divs that might have borders */
     .stChatInput > div,
     .stChatInput > div > div,
@@ -756,19 +777,32 @@ with tab_chat:
                 st.session_state.cot_history.append({"idx": ai_index, "result": result})
 
                 # 4. If there's a Tool Call, show success notification
+                # IMPORTANT: Check ALL messages in result, not just the last one
+                # because Strategist returns [response] + tool_messages + [follow_up_response]
+                # so the tool_calls are in an earlier message, not the last one
                 has_set_full_plan = False
-                if hasattr(response, 'tool_calls') and response.tool_calls:
+                tool_call_message = None
+
+                # Find the message with tool_calls (search backwards from the end)
+                for msg in reversed(result["messages"]):
+                    if hasattr(msg, 'tool_calls') and msg.tool_calls:
+                        tool_call_message = msg
+                        break
+
+                if tool_call_message:
                     # Check which tool was called
-                    for tool_call in response.tool_calls:
+                    for tool_call in tool_call_message.tool_calls:
                         tool_name = getattr(tool_call, 'name', None) or (tool_call.get('name') if isinstance(tool_call, dict) else None)
                         if tool_name == "save_journal_entry":
                             st.toast("✨ Journal entry written to database! Check sidebar data.", icon="✅")
                         elif tool_name == "set_full_plan":
                             has_set_full_plan = True
                             st.toast("✨ Plan created! Check sidebar navigation system.", icon="🎯")
-                # 5. If any tool called set_full_plan this round (whether demo or regular conversation), immediately rerun to update sidebar
+
+                # 5. If any tool called set_full_plan this round (whether demo or regular conversation), wait a bit then rerun to update sidebar
                 if has_set_full_plan:
-                    st.rerun()
+                    time.sleep(0.5)  # Brief pause to let user see the message
+                    st.rerun()      # This line is key! It forces the entire app to rerun
 
     # Render history messages and RLHF feedback in history_container, ensuring they're always above input box
     with history_container:

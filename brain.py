@@ -330,15 +330,29 @@ Your Goal: Convert intent into a tiny, undeniable action (Micro-step) based on t
    - Never give up - always find a smaller version
 
 **Core Guidelines:**
-1. **Be Concise:** Keep response SHORT (max 3 sentences). Long text = cognitive load.
-2. **Negotiate Down:** If user says task is "too hard", "too much", or "impossible", ALWAYS negotiate down, NEVER give up.
-   - "30 push-ups too much? Let's do 5. Or just 1. Or just get into push-up position."
-   - "Can't run? Just put on shoes and stand outside."
-   - "Too tired? Just do the smallest possible version."
-   - **CRITICAL:** Never tell user to "give up" or "rest instead". Always find a smaller action.
-3. **Action First:** Don't talk about feelings anymore. Talk about motion.
-4. **Handle Procrastination:** If user says "I'm lazy" or "I want to lie down", acknowledge but push for the tiniest action.
-   - "I hear you want to rest. But can you do just ONE push-up? Or just get into position?"
+1. **Be Encouraging & Concise:** Keep response SHORT (3-4 sentences max), but make it ENCOURAGING and ENERGETIC.
+   - Start with encouragement: "You've got this!", "I believe in you!", "Let's do this!", "Small steps lead to big wins!"
+   - End with belief: "You can do this!", "I know you can!", "Just start, you've got this!"
+   - Keep it warm and supportive, not robotic
+
+2. **Negotiate Down with Encouragement:** If user says task is "too hard", "too much", or "impossible", ALWAYS negotiate down with ENCOURAGEMENT, NEVER give up.
+   - "30 push-ups too much? No problem! Let's do 5. Or just 1. Or just get into push-up position. Every small step counts!"
+   - "Can't run? That's okay! Just put on shoes and stand outside. You're building momentum!"
+   - "Too tired? I hear you. But can you do the tiniest version? Just one tiny action. You've got this!"
+   - **CRITICAL:** Never tell user to "give up" or "rest instead". Always find a smaller action and encourage them.
+
+3. **Action First with Energy:** Don't talk about feelings anymore. Talk about motion with ENERGY and BELIEF.
+   - Use action verbs: "Let's do it!", "Try this!", "Give it a shot!"
+   - Show belief: "I know you can!", "You're capable of this!", "Small steps, big progress!"
+
+4. **Handle Procrastination with Encouragement:** If user says "I'm lazy" or "I want to lie down", acknowledge but push for the tiniest action with ENCOURAGEMENT.
+   - "I hear you want to rest. But can you do just ONE push-up? Or just get into position? Even one tiny action is progress. You've got this!"
+   - "I understand. But let's try the smallest possible version. Just one tiny step. I believe in you!"
+
+5. **Celebrate Small Wins:** When suggesting a micro-action, frame it as an achievement.
+   - "Just getting into position is already a win!"
+   - "Even putting on your shoes is progress!"
+   - "One tiny action is all it takes to build momentum!"
 """
 
 # 4. Architect: Responsible for logging and optimization
@@ -452,7 +466,10 @@ You are the Supervisor. Your role is to analyze the conversation state and route
    - User is ready to act but needs a push
    - **CRITICAL:** Task difficulty complaints are ALWAYS STARTER cases, even if user seems tired or emotional. Starter will negotiate down the task, not give up.
 
-4. 'ARCHITECT': User has finished a task, wants to log progress, or says "I did it".
+4. 'ARCHITECT': User has finished a task, wants to log progress, or says completion phrases:
+   - **Completion signals:** "I did it", "I'm done", "I've finished", "I finished", "done", "finished", "completed", "I completed it"
+   - User wants to take a rest after completing something
+   - User says "Can I take a rest? I think I've finished" -> This is a completion signal, route to ARCHITECT
 
 **SAFETY RULE:**
 If the user mentions self-harm, suicide, or severe danger, ALWAYS route to **HEALER**.
@@ -464,27 +481,67 @@ You MUST follow this 3-step reasoning process:
 **Step 1: Analyze Intent**
 - Is the user emotional? (sad, hurt, drained, exhausted, traumatized)
 - Is the user planning? (asking about goals, systems, concepts)
-- Is the user reporting? (saying "I did it", "I completed")
+- Is the user reporting completion? (saying "I did it", "I'm done", "I've finished", "I finished", "done", "completed", "Can I take a rest? I've finished")
 - Is the user procrastinating? (lazy, don't want to, too hard)
+- Is the user ready to act? (saying "Maybe", "I can try", "Okay let's do it" - but NOT "Okay I'm done")
 
 **Step 2: Check Context**
-- **CRITICAL:** Check the SAVED state provided in "CONTEXT CHECK" below (NOT what was mentioned in conversation)
-- Is the 'Vision' and 'System' SAVED in the profile? (This affects routing priority)
-- **IMPORTANT:** Even if the user mentioned their system in conversation, if it's NOT SAVED yet (shown as "NOT SET" in context), you must route to STRATEGIST to save it first.
-- What is the conversation history? (Previous agent, user's state)
+- **IMPORTANT:** The context you check depends on the user's intent from Step 1:
+
+  **If user is emotional/distressed (sad, hurt, drained, external stressors):**
+  - Focus on emotional state and external stressors
+  - Check conversation history for emotional cues, external events (boss yelled, fight, bad news, etc.)
+  - **DO NOT** focus on Vision/System status - emotional distress takes priority
+  - What triggered the distress? What external stressors are present?
+
+  **If user is planning/goal setting:**
+  - **CRITICAL:** Check BOTH:
+    1. The SAVED state provided in "CONTEXT CHECK" below (what's in the file)
+    2. The conversation history (what has been DETERMINED in conversation)
+
+  - **Understanding the Two States:**
+    - SAVED state: What's actually saved in user_profile.json file
+    - DETERMINED state: What has been agreed upon/determined in the conversation (even if not saved yet)
+
+  - **Routing Logic Based on States:**
+    - If Vision is DETERMINED in conversation but NOT SAVED → User is in Phase 2, Strategist should ask for System
+    - If both Vision and System are DETERMINED in conversation but NOT SAVED → Strategist should call tool to save
+    - If Vision is NOT DETERMINED → Strategist should ask for Vision (Phase 1)
+    - Only when BOTH are SAVED in file → Onboarding complete, can route normally
+
+  **If user wants to act or has resistance (STARTER routing):**
+  - Focus on user's current state: energy level, emotional state, resistance, procrastination
+  - Check conversation history for: task difficulty complaints, laziness, "too hard", "can't do it", negotiation requests
+  - Reference their System (from SAVED state if available) to understand their goal, but adapt based on current state
+  - If their System seems too difficult for current state, suggest a smaller version
+  - What is their current energy/motivation level? What obstacles are they facing?
+
+  **If user is reporting completion (ARCHITECT routing):**
+  - Focus on what the user actually completed or wants to log
+  - Check conversation history for: completion statements, mood, energy level, what they did
+  - Reference their System/Vision (from SAVED state if available) only as context for understanding what they completed
+  - What did they complete? How do they feel? What's their energy level?
+
+- What is the conversation history? (Previous agent, user's state, what has been discussed)
 
 **Step 3: Apply Rules (IN ORDER OF PRIORITY):**
-1. **HIGHEST PRIORITY:** If 'Vision' or 'System' is missing -> STRATEGIST (unless emotional crisis that needs HEALER first)
-   - **CRITICAL:** Even if user says "Okay", "Fine", "Maybe I can try" (transition signals), if Vision or System is NOT saved yet, route to STRATEGIST to save the plan first.
-   - Transition signals only apply AFTER the plan is saved (Vision and System are both set).
+1. **HIGHEST PRIORITY:** If 'Vision' or 'System' is NOT SAVED in file -> STRATEGIST (unless emotional crisis that needs HEALER first)
+   - **CRITICAL:** Check conversation history to determine which phase:
+     * Vision NOT determined in conversation → Phase 1: Strategist asks for Vision
+     * Vision determined but System NOT determined → Phase 2: Strategist asks for System
+     * Both determined but NOT saved → Strategist should call tool to save
+   - **CRITICAL:** Even if user says "Okay", "Fine", "Maybe I can try" (transition signals), if Vision or System is NOT SAVED yet, route to STRATEGIST to save the plan first.
+   - Transition signals only apply AFTER the plan is saved (Vision and System are both saved in file).
 
 2. If user says "sad", "drained", "exhausted", "hurt", "boss yelled" -> HEALER (external stressors/emotional distress)
 
-3. If user says "Maybe", "I can try", "Okay", "Fine", "Let's do it" -> STARTER (transition signal - ONLY if plan is already saved)
+3. **COMPLETION SIGNALS (HIGH PRIORITY):** If user says "I'm done", "I've finished", "I finished", "I did it", "done", "finished", "completed", "Can I take a rest? I've finished" -> ARCHITECT
+   - **CRITICAL:** Completion signals take priority over transition signals. "Okay, I'm done" = ARCHITECT, not STARTER.
+   - If user says they finished something and want to rest, route to ARCHITECT to log the completion.
 
-4. If user says "too hard", "too much", "impossible" -> STARTER (even if emotional, unless external stressor)
+4. If user says "Maybe", "I can try", "Okay let's do it", "Fine let's try" -> STARTER (transition signal - ONLY if plan is already saved AND user is NOT saying they're done)
 
-5. If user says "I did it" or "completed" -> ARCHITECT
+5. If user says "too hard", "too much", "impossible" -> STARTER (even if emotional, unless external stressor)
 
 6. If user is planning/goal setting -> STRATEGIST
 
@@ -496,12 +553,36 @@ Your output will be automatically structured as JSON with two fields:
 - `reasoning`: Your 3-step analysis (Step 1: Analyze Intent → Step 2: Check Context → Step 3: Apply Rules)
 - `decision`: One of STRATEGIST, HEALER, STARTER, or ARCHITECT
 
-Example reasoning format:
+Example reasoning format for STARTER:
 - Step 1: User says "Maybe I can try" - this is a transition signal indicating readiness to act.
-- Step 2: Checking SAVED state: Vision is set, System is set (both show as saved in CONTEXT CHECK). Onboarding is complete.
+- Step 2: The user wants to act and shows readiness. Their energy level seems medium, and they're ready to take a small step. (For STARTER, focus on user state, not saved status)
 - Step 3: Transition signals route to STARTER per the rules.
 
-**IMPORTANT:** In Step 2, always reference the SAVED state from CONTEXT CHECK, not what was mentioned in conversation. If CONTEXT CHECK shows "NOT SET", then it's not saved yet, regardless of what the user said.
+Example reasoning format for ARCHITECT:
+- Step 1: User says "Okay, I'm done. Can I take a rest? I think I've finished for today." - This is a completion signal, not a transition signal.
+- Step 2: The user reports completing their task and wants to rest. They feel accomplished and their energy level seems low after completing. (For ARCHITECT, focus on what was completed and user's state)
+- Step 3: Completion signals ("I'm done", "I've finished") route to ARCHITECT per the rules.
+
+**CRITICAL - Step 2 Format Requirements:**
+The format depends on the user's intent:
+
+**For emotional/distress cases (HEALER routing):**
+- Step 2: Focus on emotional state and external stressors. Example: "The user expresses feeling drained and mentions their boss yelled at them. This is an external stressor that requires emotional support and validation."
+
+**For planning/goal setting cases (STRATEGIST routing):**
+- Step 2: MUST explicitly state BOTH states:
+  1. **SAVED state** (from CONTEXT CHECK - what's in the file): "Vision is saved/not saved, System is saved/not saved"
+  2. **DETERMINED state** (from conversation history): "Vision is determined/not determined in conversation, System is determined/not determined in conversation"
+
+  Example: "SAVED state: Vision is NOT saved, System is NOT saved. DETERMINED state: Vision IS determined in conversation (user said 'lose 6kg in 12 weeks'), System is NOT determined. User is in Phase 2, Strategist should ask for System."
+
+**For action/resistance cases (STARTER routing):**
+- Step 2: Focus on user's current state and obstacles. Reference their System if available, but adapt to current state. **DO NOT check if Vision/System is saved** - that's not relevant for action routing. Example: "The user expresses wanting to act but feels resistance ('too hard', 'can't do it'). Their energy level seems low. Their System is '30 push-ups daily' (for reference), but given their current state, they need a much smaller version (e.g., just get into push-up position). The primary concern is overcoming resistance and generating a tiny action that matches their current energy."
+
+**For completion cases (ARCHITECT routing):**
+- Step 2: Focus on what was completed and user's state. Reference System/Vision only as context. Example: "The user reports completing their task (got into push-up position). They feel accomplished and their energy level is medium. Their System is '30 push-ups daily' (for context), but the focus is on logging the completion data (mood, energy, note)."
+
+**IMPORTANT:** Only check Vision/System status when relevant to routing (planning/goal setting or action). For emotional distress, focus on emotional state instead.
 
 The system will automatically format your response as structured JSON. Just provide clear reasoning and decision.
 """
@@ -807,38 +888,48 @@ def create_mind_flow_brain(api_key: str, model: str = "gemini-2.0-flash", update
     def supervisor_node(state):
         # Check current plan status (State-Aware Routing)
         current_profile = load_user_profile()
-        vision = current_profile.get("vision")
-        system = current_profile.get("system")
+        vision_saved = current_profile.get("vision")
+        system_saved = current_profile.get("system")
 
-        # Build context information
+        # Build context information - show both SAVED state and note that conversation may have more info
         context_check = f"""
-                        **CONTEXT CHECK (SAVED STATE - NOT conversation mentions):**
+                        **CONTEXT CHECK:**
                         Current SAVED Plan Status (from user_profile.json):
-                        - Vision: {vision if vision else "NOT SET (needs to be saved)"}
-                        - System: {system if system else "NOT SET (needs to be saved)"}
-                        
-                        **IMPORTANT:** This shows what is ACTUALLY SAVED in the profile, not what was mentioned in conversation. 
-                        If it shows "NOT SET", the plan has not been saved yet, even if the user mentioned it in conversation.
+                        - Vision: {vision_saved if vision_saved else "NOT SAVED YET"}
+                        - System: {system_saved if system_saved else "NOT SAVED YET"}
+
+                        **IMPORTANT:**
+                        - This shows what is ACTUALLY SAVED in the profile file.
+                        - However, you should ALSO check the conversation history to see if Vision or System has been DETERMINED in the conversation (even if not saved yet).
+                        - If Vision is determined in conversation but not saved → User is in Phase 2 (needs System)
+                        - If both Vision and System are determined in conversation but not saved → Strategist should call tool to save
+                        - Only when BOTH are SAVED in the file, onboarding is complete.
                         """
 
-        # Priority rules
-        if not vision or vision is None or not system or system is None:
-            # If Vision or System not set, prioritize routing to STRATEGIST
+        # Priority rules - check saved state
+        if not vision_saved or vision_saved is None or not system_saved or system_saved is None:
+            # If Vision or System not saved, prioritize routing to STRATEGIST
             priority_rule = """
                             **PRIORITY RULE:**
-                            Vision or System is EMPTY/NONE. You MUST prioritize routing to **STRATEGIST** to finish the onboarding process (Vision → System).
+                            Vision or System is NOT SAVED in the profile file. You MUST prioritize routing to **STRATEGIST** to finish the onboarding process.
 
-                            **CRITICAL:** Even if the user says "Okay", "Fine", "Maybe I can try" (transition signals), if Vision or System is NOT saved yet, you MUST route to STRATEGIST first to save the plan. Transition signals only apply AFTER the plan is saved.
+                            **CRITICAL ROUTING LOGIC:**
+                            1. Check conversation history to see if Vision or System has been DETERMINED in conversation:
+                               - If Vision is determined in conversation → User is in Phase 2, Strategist should ask for System
+                               - If both Vision and System are determined in conversation → Strategist should call tool to save
+                               - If neither is determined → Strategist should ask for Vision (Phase 1)
 
-                            Only route to HEALER if the user is explicitly screaming, crying, demanding to stop, or expressing severe emotional distress that prevents planning.
+                            2. Even if the user says "Okay", "Fine", "Maybe I can try" (transition signals), if Vision or System is NOT SAVED yet, you MUST route to STRATEGIST first to save the plan. Transition signals only apply AFTER the plan is saved.
 
-                            Even if the user says "Okay fine" or seems slightly frustrated during planning, they are still in the onboarding phase. Route to STRATEGIST.
+                            3. Only route to HEALER if the user is explicitly screaming, crying, demanding to stop, or expressing severe emotional distress that prevents planning.
+
+                            4. Even if the user says "Okay fine" or seems slightly frustrated during planning, they are still in the onboarding phase. Route to STRATEGIST.
                             """
         else:
-            # If Vision and System are both set, can route normally
+            # If Vision and System are both saved, can route normally
             priority_rule = """
                             **PRIORITY RULE:**
-                            Vision and System are SET. You can route normally based on user intent.
+                            Vision and System are BOTH SAVED in the profile file. Onboarding is complete. You can route normally based on user intent.
                             """
 
         # Combine complete Supervisor Prompt
@@ -866,15 +957,69 @@ def create_mind_flow_brain(api_key: str, model: str = "gemini-2.0-flash", update
             reasoning_text = f"Structured output parsing failed: {str(e)}"
 
             # Decide default routing based on plan status
-            if not vision or vision is None or not system or system is None:
+            if not vision_saved or vision_saved is None or not system_saved or system_saved is None:
                 selected_agent = "strategist"
             else:
                 selected_agent = "healer"
 
             decision = selected_agent.upper()
 
-        # Debug info: record routing decision and reasoning process
-        debug_info = f"[🔀 Supervisor routed to: {decision}] (Vision: {'✓' if vision else '✗'}, System: {'✓' if system else '✗'})"
+        # Extract DETERMINED state
+        # Logic: If already SAVED, use SAVED as DETERMINED (no need to check conversation)
+        #        If NOT SAVED, extract DETERMINED from conversation history
+        if vision_saved and system_saved:
+            # Already saved: use saved values as determined (no need to check conversation)
+            vision_determined = vision_saved
+            system_determined = system_saved
+        else:
+            # Not saved: extract DETERMINED state from conversation history
+            vision_determined = None
+            system_determined = None
+
+            try:
+                # Create a simple extraction prompt
+                extraction_prompt = """Analyze the conversation history and extract:
+1. Vision: Has the user specified a 12-week goal? If yes, what is it? (e.g., "lose 6kg in 12 weeks")
+2. System: Has the user specified a daily system/habit? If yes, what is it? (e.g., "do 30 push-ups every day")
+
+Respond in JSON format:
+{
+  "vision": "the vision if determined, or null",
+  "system": "the system if determined, or null"
+}
+
+If not determined, use null. Be concise."""
+
+                extraction_messages = [
+                    SystemMessage(content=extraction_prompt),
+                    HumanMessage(content=f"Conversation history:\n{chr(10).join([f'{type(msg).__name__}: {msg.content[:200]}' for msg in state['messages'][-10:] if hasattr(msg, 'content')])}")
+                ]
+
+                extraction_response = llm.invoke(extraction_messages)
+                extraction_text = extraction_response.content if hasattr(extraction_response, 'content') else str(extraction_response)
+
+                # Try to parse JSON from response
+                import re
+                json_match = re.search(r'\{[^}]+\}', extraction_text, re.DOTALL)
+                if json_match:
+                    import json
+                    extracted = json.loads(json_match.group())
+                    vision_determined = extracted.get("vision") if extracted.get("vision") and extracted.get("vision").lower() != "null" else None
+                    system_determined = extracted.get("system") if extracted.get("system") and extracted.get("system").lower() != "null" else None
+            except Exception as e:
+                # If extraction fails, use None (will show as ✗)
+                print(f"⚠️ Failed to extract DETERMINED state: {e}")
+                vision_determined = None
+                system_determined = None
+
+        # Debug info: show routing decision
+        # Only show Vision/System status for STRATEGIST (planning context is relevant)
+        if decision == "STRATEGIST":
+            vision_status = '✓' if vision_determined else '✗'
+            system_status = '✓' if system_determined else '✗'
+            debug_info = f"[🔀 Supervisor routed to: {decision}] (Vision: {vision_status}, System: {system_status})"
+        else:
+            debug_info = f"[🔀 Supervisor routed to: {decision}]"
 
         return {
             "next_step": selected_agent,
